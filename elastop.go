@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -558,8 +559,14 @@ func main() {
 
 	// Update function
 	update := func() {
-		baseURL := fmt.Sprintf("http://%s:%d", *host, *port)
-		client := &http.Client{}
+		baseURL := fmt.Sprintf("https://%s:%d", *host, *port)
+
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // Skip cert verification
+		}
+
+		client := &http.Client{Transport: transport}
+
 
 		// Helper function for ES requests
 		makeRequest := func(path string, target interface{}) error {
