@@ -206,7 +206,6 @@ type CatNodesStats struct {
 }
 
 var (
-	showHeader  = true
 	showNodes   = true
 	showRoles   = true
 	showIndices = true
