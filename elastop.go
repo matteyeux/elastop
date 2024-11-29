@@ -212,7 +212,6 @@ var (
 	showMetrics = true
 )
 
-// Add these package level variables right after the existing var declarations
 var (
 	header       *tview.TextView
 	nodesPanel   *tview.TextView
@@ -239,14 +238,9 @@ func bytesToHuman(bytes int64) string {
 	return fmt.Sprintf("%.1f%s", val, units[exp])
 }
 
-// In the indices panel section, update the formatting part:
-
-// First, let's create a helper function at package level for number formatting
 func formatNumber(n int) string {
-	// Convert number to string
 	str := fmt.Sprintf("%d", n)
 
-	// Add commas
 	var result []rune
 	for i, r := range str {
 		if i > 0 && (len(str)-i)%3 == 0 {
@@ -257,20 +251,16 @@ func formatNumber(n int) string {
 	return string(result)
 }
 
-// Update the convertSizeFormat function to remove decimal points
 func convertSizeFormat(sizeStr string) string {
 	var size float64
 	var unit string
 	fmt.Sscanf(sizeStr, "%f%s", &size, &unit)
 
-	// Convert units like "gb" to "G"
 	unit = strings.ToUpper(strings.TrimSuffix(unit, "b"))
 
-	// Return without decimal points
 	return fmt.Sprintf("%d%s", int(size), unit)
 }
 
-// Update formatResourceSize to ensure consistent padding and remove decimal points
 func formatResourceSize(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -286,11 +276,9 @@ func formatResourceSize(bytes int64) string {
 		exp++
 	}
 
-	// Use %3d to right-justify to 4 total chars (3 digits + 1 unit letter)
 	return fmt.Sprintf("%3d%s", int(val), units[exp])
 }
 
-// Add this helper function at package level
 func getPercentageColor(percent float64) string {
 	switch {
 	case percent < 30:
@@ -322,7 +310,6 @@ func getLatestVersion() string {
 		return ""
 	}
 
-	// Clean up version string (remove 'v' prefix if present)
 	latestVersion = strings.TrimPrefix(release.TagName, "v")
 	versionCache = time.Now()
 	return latestVersion
@@ -330,7 +317,7 @@ func getLatestVersion() string {
 
 func compareVersions(current, latest string) bool {
 	if latest == "" {
-		return true // If we can't get latest version, assume current is ok
+		return true
 	}
 
 	// Clean up version strings
@@ -352,7 +339,6 @@ func compareVersions(current, latest string) bool {
 	return len(currentParts) >= len(latestParts)
 }
 
-// Update roleColors map with lighter colors for I and R
 var roleColors = map[string]string{
 	"master":                "#ff5555", // red
 	"data":                  "#50fa7b", // green
@@ -369,7 +355,6 @@ var roleColors = map[string]string{
 	"coordinating_only":     "#d65d0e", // burnt orange
 }
 
-// Add this map alongside the roleColors map at package level
 var legendLabels = map[string]string{
 	"master":                "Master",
 	"data":                  "Data",
@@ -386,7 +371,6 @@ var legendLabels = map[string]string{
 	"coordinating_only":     "Coordinating Only",
 }
 
-// Update the formatNodeRoles function to use full width for all possible roles
 func formatNodeRoles(roles []string) string {
 	roleMap := map[string]string{
 		"master":                "M",
@@ -413,24 +397,20 @@ func formatNodeRoles(roles []string) string {
 	}
 	sort.Strings(letters)
 
-	// Create a fixed-width string of 13 spaces (one for each possible role)
-	formattedRoles := "             " // 13 spaces
+	formattedRoles := "             "
 	runeRoles := []rune(formattedRoles)
 
-	// Fill in the sorted letters
 	for i, letter := range letters {
-		if i < 13 { // Now we can accommodate all possible roles
+		if i < 13 {
 			runeRoles[i] = []rune(letter)[0]
 		}
 	}
 
-	// Build the final string with colors
 	var result string
 	for _, r := range runeRoles {
 		if r == ' ' {
 			result += " "
 		} else {
-			// Find the role that corresponds to this letter
 			for role, shortRole := range roleMap {
 				if string(r) == shortRole {
 					result += fmt.Sprintf("[%s]%s[white]", roleColors[role], string(r))
@@ -443,7 +423,6 @@ func formatNodeRoles(roles []string) string {
 	return result
 }
 
-// Add a helper function to get health color
 func getHealthColor(health string) string {
 	switch health {
 	case "green":
@@ -457,7 +436,6 @@ func getHealthColor(health string) string {
 	}
 }
 
-// Update the indexInfo struct to include health
 type indexInfo struct {
 	index        string
 	health       string
@@ -472,12 +450,10 @@ type indexInfo struct {
 // Add startTime at package level
 var startTime = time.Now()
 
-// Update this helper function to recalculate the grid layout
 func updateGridLayout(grid *tview.Grid, showRoles, showIndices, showMetrics bool) {
 	// Start with clean grid
 	grid.Clear()
 
-	// Calculate visible panels for bottom row
 	visiblePanels := make([]struct {
 		panel *tview.TextView
 		show  bool
@@ -1082,7 +1058,6 @@ func main() {
 	}
 }
 
-// Add these helper functions at package level
 func getTotalSegments(stats NodesStats) int64 {
 	var total int64
 	for _, node := range stats.Nodes {
@@ -1115,7 +1090,6 @@ func getTotalNetworkRX(stats NodesStats) int64 {
 	return total
 }
 
-// Update these helper functions at package level
 func getMaxLengths(nodesInfo NodesInfo, indicesStats IndexStats) (int, int) {
 	maxNodeNameLen := 0
 	maxIndexNameLen := 0
@@ -1135,14 +1109,12 @@ func getMaxLengths(nodesInfo NodesInfo, indicesStats IndexStats) (int, int) {
 		}
 	}
 
-	// Add a small buffer to prevent tight spacing
 	maxNodeNameLen += 2
 	maxIndexNameLen += 2
 
 	return maxNodeNameLen, maxIndexNameLen
 }
 
-// Update the nodes panel header formatting
 func getNodesPanelHeader(maxNodeNameLen int) string {
 	return fmt.Sprintf("[::b]%-*s  [#444444]│[#00ffff] %-13s [#444444]│[#00ffff] %-20s [#444444]│[#00ffff] %-7s [#444444]│[#00ffff] %4s      [#444444]│[#00ffff] %4s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-25s[white]\n",
 		maxNodeNameLen,
@@ -1158,7 +1130,6 @@ func getNodesPanelHeader(maxNodeNameLen int) string {
 		"OS")
 }
 
-// Update the indices panel header formatting
 func getIndicesPanelHeader(maxIndexNameLen int) string {
 	return fmt.Sprintf("   [::b]%-*s  [#444444]│[#00ffff] %15s [#444444]│[#00ffff] %12s [#444444]│[#00ffff] %8s [#444444]│[#00ffff] %8s [#444444]│[#00ffff] %-12s [#444444]│[#00ffff] %-10s[white]\n",
 		maxIndexNameLen,
