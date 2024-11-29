@@ -704,8 +704,8 @@ func main() {
 			diskAvailable := int64(0)
 			if len(nodeStats.FS.Data) > 0 {
 				// Use the first data path's stats - this is the Elasticsearch data directory
-				diskTotal = nodeStats.FS.Data[0].TotalInBytes         // e.g. 5.6TB for r320-1
-				diskAvailable = nodeStats.FS.Data[0].AvailableInBytes // e.g. 5.0TB available
+				diskTotal = nodeStats.FS.Data[0].TotalInBytes
+				diskAvailable = nodeStats.FS.Data[0].AvailableInBytes
 			} else {
 				// Fallback to total stats if data path stats aren't available
 				diskTotal = nodeStats.FS.Total.TotalInBytes
