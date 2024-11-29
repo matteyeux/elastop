@@ -20,7 +20,7 @@ Elastop is a terminal-based dashboard for monitoring Elasticsearch clusters in r
 
 ```bash
 # Clone the repository
-git git clone https://github.com/yourusername/elastop.git
+git git clone https://github.com/acidvegas/elastop.git
 cd elastop
 go build
 ```
