@@ -254,11 +254,11 @@ func convertSizeFormat(sizeStr string) string {
 	return fmt.Sprintf("%d%s", int(size), unit)
 }
 
-// Update formatResourceSize to return just the number and unit
-func formatResourceSize(bytes int64, targetUnit string) string {
+// Update formatResourceSize to dynamically choose the appropriate unit
+func formatResourceSize(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
-		return fmt.Sprintf("%3d%s", bytes, targetUnit)
+		return fmt.Sprintf("%3d B", bytes)
 	}
 
 	units := []string{"B", "K", "M", "G", "T", "P"}
@@ -270,7 +270,8 @@ func formatResourceSize(bytes int64, targetUnit string) string {
 		exp++
 	}
 
-	return fmt.Sprintf("%3d%s", int(val), targetUnit)
+	// Format with appropriate unit instead of using targetUnit
+	return fmt.Sprintf("%3.1f%s", val, units[exp])
 }
 
 // Add this helper function at package level
@@ -685,16 +686,16 @@ func main() {
 				cpuPercent,
 				nodeInfo.OS.AvailableProcessors,
 				nodeLoads[nodeInfo.Name],
-				formatResourceSize(nodeStats.OS.Memory.UsedInBytes, "G"),
-				formatResourceSize(nodeStats.OS.Memory.TotalInBytes, "G"),
+				formatResourceSize(nodeStats.OS.Memory.UsedInBytes),
+				formatResourceSize(nodeStats.OS.Memory.TotalInBytes),
 				getPercentageColor(memPercent),
 				int(memPercent),
-				formatResourceSize(nodeStats.JVM.Memory.HeapUsedInBytes, "G"),
-				formatResourceSize(nodeStats.JVM.Memory.HeapMaxInBytes, "G"),
+				formatResourceSize(nodeStats.JVM.Memory.HeapUsedInBytes),
+				formatResourceSize(nodeStats.JVM.Memory.HeapMaxInBytes),
 				getPercentageColor(heapPercent),
 				int(heapPercent),
-				formatResourceSize(diskUsed, "G"),
-				formatResourceSize(diskTotal, "T"),
+				formatResourceSize(diskUsed),
+				formatResourceSize(diskTotal),
 				getPercentageColor(diskPercent),
 				int(diskPercent),
 				nodeInfo.OS.PrettyName,
