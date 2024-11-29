@@ -254,11 +254,11 @@ func convertSizeFormat(sizeStr string) string {
 	return fmt.Sprintf("%d%s", int(size), unit)
 }
 
-// Update formatResourceSize to dynamically choose the appropriate unit
+// Update formatResourceSize to ensure consistent padding and remove decimal points
 func formatResourceSize(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
-		return fmt.Sprintf("%3d B", bytes)
+		return fmt.Sprintf("%4d B", bytes)
 	}
 
 	units := []string{"B", "K", "M", "G", "T", "P"}
@@ -270,8 +270,8 @@ func formatResourceSize(bytes int64) string {
 		exp++
 	}
 
-	// Format with appropriate unit instead of using targetUnit
-	return fmt.Sprintf("%3.1f%s", val, units[exp])
+	// Use %3d to right-justify to 4 total chars (3 digits + 1 unit letter)
+	return fmt.Sprintf("%3d%s", int(val), units[exp])
 }
 
 // Add this helper function at package level
@@ -873,9 +873,12 @@ func main() {
 
 		// Search metrics
 		fmt.Fprint(metricsPanel, formatMetric("Search Queries", formatNumber(int(totalQueries))))
-		fmt.Fprint(metricsPanel, formatMetric("Query Rate", fmt.Sprintf("%s/s", formatNumber(int(float64(totalQueries)/time.Since(startTime).Seconds())))))
-		fmt.Fprint(metricsPanel, formatMetric("Total Query Time", fmt.Sprintf("%.1fs", totalQueryTime)))
-		fmt.Fprint(metricsPanel, formatMetric("Avg Query Latency", fmt.Sprintf("%.2fms", totalQueryTime*1000/float64(totalQueries+1))))
+		fmt.Fprint(metricsPanel, formatMetric("Query Rate",
+			fmt.Sprintf("%s/s", formatNumber(int(float64(totalQueries)/time.Since(startTime).Seconds())))))
+		fmt.Fprint(metricsPanel, formatMetric("Total Query Time",
+			fmt.Sprintf("%.1fs", totalQueryTime)))
+		fmt.Fprint(metricsPanel, formatMetric("Avg Query Latency",
+			fmt.Sprintf("%.2fms", totalQueryTime*1000/float64(totalQueries+1))))
 
 		// Indexing metrics
 		fmt.Fprint(metricsPanel, formatMetric("Index Operations", formatNumber(int(totalIndexing))))
