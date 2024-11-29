@@ -691,11 +691,15 @@ func main() {
 		// Update header with dynamic padding
 		header.Clear()
 		latestVer := getLatestVersion()
+		padding := 0
+		if maxNodeNameLen > len(clusterStats.ClusterName) {
+			padding = maxNodeNameLen - len(clusterStats.ClusterName)
+		}
 		fmt.Fprintf(header, "[#00ffff]Cluster:[white] %s [%s]%s[-]%s[#00ffff]Latest: [white]%s\n",
 			clusterStats.ClusterName,
 			statusColor,
 			strings.ToUpper(clusterStats.Status),
-			strings.Repeat(" ", maxNodeNameLen-len(clusterStats.ClusterName)), // Dynamic padding
+			strings.Repeat(" ", padding),
 			latestVer)
 		fmt.Fprintf(header, "[#00ffff]Nodes:[white] %d Total, [green]%d[white] Successful, [#ff5555]%d[white] Failed\n",
 			clusterStats.Nodes.Total,
@@ -939,12 +943,9 @@ func main() {
 
 		// Search metrics
 		fmt.Fprint(metricsPanel, formatMetric("Search Queries", formatNumber(int(totalQueries))))
-		fmt.Fprint(metricsPanel, formatMetric("Query Rate",
-			fmt.Sprintf("%s/s", formatNumber(int(float64(totalQueries)/time.Since(startTime).Seconds())))))
-		fmt.Fprint(metricsPanel, formatMetric("Total Query Time",
-			fmt.Sprintf("%.1fs", totalQueryTime)))
-		fmt.Fprint(metricsPanel, formatMetric("Avg Query Latency",
-			fmt.Sprintf("%.2fms", totalQueryTime*1000/float64(totalQueries+1))))
+		fmt.Fprint(metricsPanel, formatMetric("Query Rate", fmt.Sprintf("%s/s", formatNumber(int(float64(totalQueries)/time.Since(startTime).Seconds())))))
+		fmt.Fprint(metricsPanel, formatMetric("Total Query Time", fmt.Sprintf("%.1fs", totalQueryTime)))
+		fmt.Fprint(metricsPanel, formatMetric("Avg Query Latency", fmt.Sprintf("%.2fms", totalQueryTime*1000/float64(totalQueries+1))))
 
 		// Indexing metrics
 		fmt.Fprint(metricsPanel, formatMetric("Index Operations", formatNumber(int(totalIndexing))))
