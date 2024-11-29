@@ -205,6 +205,23 @@ type CatNodesStats struct {
 	Name   string `json:"name"`
 }
 
+var (
+	showHeader  = true
+	showNodes   = true
+	showRoles   = true
+	showIndices = true
+	showMetrics = true
+)
+
+// Add these package level variables right after the existing var declarations
+var (
+	header       *tview.TextView
+	nodesPanel   *tview.TextView
+	rolesPanel   *tview.TextView
+	indicesPanel *tview.TextView
+	metricsPanel *tview.TextView
+)
+
 func bytesToHuman(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -456,6 +473,72 @@ type indexInfo struct {
 // Add startTime at package level
 var startTime = time.Now()
 
+// Update this helper function to recalculate the grid layout
+func updateGridLayout(grid *tview.Grid, showRoles, showIndices, showMetrics bool) {
+	// Start with clean grid
+	grid.Clear()
+
+	// Calculate visible panels for bottom row
+	visiblePanels := make([]struct {
+		panel *tview.TextView
+		show  bool
+	}, 0)
+
+	if showRoles {
+		visiblePanels = append(visiblePanels, struct {
+			panel *tview.TextView
+			show  bool
+		}{rolesPanel, true})
+	}
+	if showIndices {
+		visiblePanels = append(visiblePanels, struct {
+			panel *tview.TextView
+			show  bool
+		}{indicesPanel, true})
+	}
+	if showMetrics {
+		visiblePanels = append(visiblePanels, struct {
+			panel *tview.TextView
+			show  bool
+		}{metricsPanel, true})
+	}
+
+	// Adjust row configuration based on whether nodes panel is shown
+	if showNodes {
+		grid.SetRows(3, 0, 0) // Header, nodes, bottom panels
+	} else {
+		grid.SetRows(3, 0) // Just header and bottom panels
+	}
+
+	// Set up columns based on number of visible panels
+	switch len(visiblePanels) {
+	case 3:
+		grid.SetColumns(-1, -2, -1) // 1:2:1 ratio
+	case 2:
+		grid.SetColumns(-1, -1) // Two equal columns
+	case 1:
+		grid.SetColumns(-1) // Single column
+	}
+
+	// Always show header at top spanning all columns
+	grid.AddItem(header, 0, 0, 1, len(visiblePanels), 0, 0, false)
+
+	// Add nodes panel if visible, spanning all columns
+	if showNodes {
+		grid.AddItem(nodesPanel, 1, 0, 1, len(visiblePanels), 0, 0, false)
+
+		// Add bottom panels
+		for i, panel := range visiblePanels {
+			grid.AddItem(panel.panel, 2, i, 1, 1, 0, 0, false)
+		}
+	} else {
+		// Add bottom panels starting from row 1
+		for i, panel := range visiblePanels {
+			grid.AddItem(panel.panel, 1, i, 1, 1, 0, 0, false)
+		}
+	}
+}
+
 func main() {
 	host := flag.String("host", "localhost", "Elasticsearch host")
 	port := flag.Int("port", 9200, "Elasticsearch port")
@@ -471,22 +554,25 @@ func main() {
 		SetColumns(-1, -2, -1). // Three columns for bottom row: roles (1), indices (2), metrics (1)
 		SetBorders(true)
 
-	// Create the individual panels
-	header := tview.NewTextView().
+	// Initialize the panels (move initialization to package level)
+	header = tview.NewTextView().
 		SetDynamicColors(true).
 		SetTextAlign(tview.AlignLeft)
 
-	nodesPanel := tview.NewTextView().
+	nodesPanel = tview.NewTextView().
 		SetDynamicColors(true)
 
-	rolesPanel := tview.NewTextView(). // New panel for roles
+	rolesPanel = tview.NewTextView(). // New panel for roles
 						SetDynamicColors(true)
 
-	indicesPanel := tview.NewTextView().
+	indicesPanel = tview.NewTextView().
 		SetDynamicColors(true)
 
-	metricsPanel := tview.NewTextView().
+	metricsPanel = tview.NewTextView().
 		SetDynamicColors(true)
+
+	// Initial layout
+	updateGridLayout(grid, showRoles, showIndices, showMetrics)
 
 	// Add panels to grid
 	grid.AddItem(header, 0, 0, 1, 3, 0, 0, false). // Header spans all columns
@@ -554,6 +640,13 @@ func main() {
 			return
 		}
 
+		// Get index write stats
+		var indexWriteStats IndexWriteStats
+		if err := makeRequest("/_stats", &indexWriteStats); err != nil {
+			indicesPanel.SetText(fmt.Sprintf("[red]Error getting write stats: %v", err))
+			return
+		}
+
 		// Calculate aggregate metrics
 		var (
 			totalQueries       int64
@@ -592,45 +685,30 @@ func main() {
 			"red":    "red",
 		}[clusterStats.Status]
 
-		// Calculate maxNodeNameLen first
-		maxNodeNameLen := 20 // default minimum length
-		for _, nodeInfo := range nodesInfo.Nodes {
-			if len(nodeInfo.Name) > maxNodeNameLen {
-				maxNodeNameLen = len(nodeInfo.Name)
-			}
-		}
+		// Get max lengths after fetching node and index info
+		maxNodeNameLen, maxIndexNameLen := getMaxLengths(nodesInfo, indicesStats)
 
-		// Then use it in header formatting
+		// Update header with dynamic padding
 		header.Clear()
 		latestVer := getLatestVersion()
 		fmt.Fprintf(header, "[#00ffff]Cluster:[white] %s [%s]%s[-]%s[#00ffff]Latest: [white]%s\n",
 			clusterStats.ClusterName,
 			statusColor,
 			strings.ToUpper(clusterStats.Status),
-			strings.Repeat(" ", maxNodeNameLen-len(clusterStats.ClusterName)), // Add padding
+			strings.Repeat(" ", maxNodeNameLen-len(clusterStats.ClusterName)), // Dynamic padding
 			latestVer)
 		fmt.Fprintf(header, "[#00ffff]Nodes:[white] %d Total, [green]%d[white] Successful, [#ff5555]%d[white] Failed\n",
 			clusterStats.Nodes.Total,
 			clusterStats.Nodes.Successful,
 			clusterStats.Nodes.Failed)
+		fmt.Fprintf(header, "[#666666]Press 2-5 to toggle panels, 'q' to quit[white]\n")
 
-		// Update nodes panel
+		// Update nodes panel with dynamic width
 		nodesPanel.Clear()
-		fmt.Fprintf(nodesPanel, "[::b][#00ffff]Nodes Information[::-]\n\n")
-		fmt.Fprintf(nodesPanel, "[::b]%-*s [#444444]│[#00ffff] %-13s [#444444]│[#00ffff] %-20s [#444444]│[#00ffff] %-7s [#444444]│[#00ffff] %4s      [#444444]│[#00ffff] %4s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-25s[white]\n",
-			maxNodeNameLen,
-			"Node Name",
-			"Roles",
-			"Transport Address",
-			"Version",
-			"CPU",
-			"Load",
-			"Memory",
-			"Heap",
-			"Disk ",
-			"OS")
+		fmt.Fprintf(nodesPanel, "[::b][#00ffff][[#ff5555]2[#00ffff]] Nodes Information[::-]\n\n")
+		fmt.Fprint(nodesPanel, getNodesPanelHeader(maxNodeNameLen))
 
-		// Display nodes with resource usage
+		// Update node entries with dynamic width
 		for id, nodeInfo := range nodesInfo.Nodes {
 			nodeStats, exists := nodesStats.Nodes[id]
 			if !exists {
@@ -675,7 +753,7 @@ func main() {
 				nodeLoads[node.Name] = node.Load1m
 			}
 
-			fmt.Fprintf(nodesPanel, "[#5555ff]%-*s[white] [#444444]│[white] %s [#444444]│[white] [white]%-20s[white] [#444444]│[white] [%s]%-7s[white] [#444444]│[white] [%s]%3d%% [#444444](%d)[white] [#444444]│[white] %4s [#444444]│[white] %4s / %4s [%s]%3d%%[white] [#444444]│[white] %4s / %4s [%s]%3d%%[white] [#444444]│[white] %4s / %4s [%s]%3d%%[white] [#444444]│[white] %s [#bd93f9]%s[white] [#444444](%s)[white]\n",
+			fmt.Fprintf(nodesPanel, "[#5555ff]%-*s  [white] [#444444]│[white] %s [#444444]│[white] [white]%-20s[white] [#444444]│[white] [%s]%-7s[white] [#444444]│[white] [%s]%3d%% [#444444](%d)[white] [#444444]│[white] %4s [#444444]│[white] %4s / %4s [%s]%3d%%[white] [#444444]│[white] %4s / %4s [%s]%3d%%[white] [#444444]│[white] %4s / %4s [%s]%3d%%[white] [#444444]│[white] %s [#bd93f9]%s[white] [#444444](%s)[white]\n",
 				maxNodeNameLen,
 				nodeInfo.Name,
 				formatNodeRoles(nodeInfo.Roles),
@@ -703,33 +781,15 @@ func main() {
 				nodeInfo.OS.Arch)
 		}
 
-		// Update indices panel
+		// Update indices panel with dynamic width
 		indicesPanel.Clear()
-		fmt.Fprintf(indicesPanel, "[::b][#00ffff]Indices Information[::-]\n\n")
-		fmt.Fprintf(indicesPanel, "   [::b]%-20s  %15s  %12s  %8s  %8s  %-12s  %-10s[white]\n",
-			"Index Name",
-			"Documents",
-			"Size",
-			"Shards",
-			"Replicas",
-			"Ingested",
-			"Rate")
+		fmt.Fprintf(indicesPanel, "[::b][#00ffff][[#ff5555]4[#00ffff]] Indices Information[::-]\n\n")
+		fmt.Fprint(indicesPanel, getIndicesPanelHeader(maxIndexNameLen))
 
-		totalDocs := 0
-		totalSize := int64(0)
-		for _, node := range nodesStats.Nodes {
-			totalSize += node.FS.Total.TotalInBytes - node.FS.Total.AvailableInBytes
-		}
-
-		// Get detailed index stats for write operations
-		var indexWriteStats IndexWriteStats
-		if err := makeRequest("/_stats", &indexWriteStats); err != nil {
-			indicesPanel.SetText(fmt.Sprintf("[red]Error getting write stats: %v", err))
-			return
-		}
-
-		// Create a slice to hold indices for sorting
+		// Update index entries with dynamic width
 		var indices []indexInfo
+		var totalDocs int
+		var totalSize int64
 
 		// Collect index information
 		for _, index := range indicesStats {
@@ -777,12 +837,17 @@ func main() {
 			}
 		}
 
+		// Calculate total size
+		for _, node := range nodesStats.Nodes {
+			totalSize += node.FS.Total.TotalInBytes - node.FS.Total.AvailableInBytes
+		}
+
 		// Sort indices by document count (descending)
 		sort.Slice(indices, func(i, j int) bool {
 			return indices[i].docs > indices[j].docs
 		})
 
-		// Display sorted indices
+		// Update index entries with dynamic width
 		for _, idx := range indices {
 			// Only show purple dot if there's actual indexing happening
 			writeIcon := "[#444444]⚪"
@@ -815,9 +880,10 @@ func main() {
 			// Convert the size format before display
 			sizeStr := convertSizeFormat(idx.storeSize)
 
-			fmt.Fprintf(indicesPanel, "%s [%s]%-20s[white]  %15s  %12s  %8s  %8s  %s  %-10s\n",
+			fmt.Fprintf(indicesPanel, "%s [%s]%-*s  [white][#444444]│[white] %15s [#444444]│[white] %12s [#444444]│[white] %8s [#444444]│[white] %8s [#444444]│[white] %s [#444444]│[white] %-10s\n",
 				writeIcon,
 				getHealthColor(idx.health),
+				maxIndexNameLen,
 				idx.index,
 				formatNumber(idx.docs),
 				sizeStr,
@@ -864,7 +930,7 @@ func main() {
 
 		// Update metrics panel
 		metricsPanel.Clear()
-		fmt.Fprintf(metricsPanel, "[::b][#00ffff]Cluster Metrics[::-]\n\n")
+		fmt.Fprintf(metricsPanel, "[::b][#00ffff][[#ff5555]5[#00ffff]] Cluster Metrics[::-]\n\n")
 
 		// Helper function to format metric lines with consistent alignment
 		formatMetric := func(name string, value string) string {
@@ -934,7 +1000,7 @@ func main() {
 
 		// Update roles panel
 		rolesPanel.Clear()
-		fmt.Fprintf(rolesPanel, "[::b][#00ffff]Node Roles[::-]\n\n")
+		fmt.Fprintf(rolesPanel, "[::b][#00ffff][[#ff5555]3[#00ffff]] Node Roles[::-]\n\n")
 
 		// Create a map of used roles
 		usedRoles := make(map[string]bool)
@@ -987,8 +1053,26 @@ func main() {
 
 	// Handle quit
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyEsc || event.Rune() == 'q' {
+		switch event.Key() {
+		case tcell.KeyEsc:
 			app.Stop()
+		case tcell.KeyRune:
+			switch event.Rune() {
+			case 'q':
+				app.Stop()
+			case '2':
+				showNodes = !showNodes
+				updateGridLayout(grid, showRoles, showIndices, showMetrics)
+			case '3':
+				showRoles = !showRoles
+				updateGridLayout(grid, showRoles, showIndices, showMetrics)
+			case '4':
+				showIndices = !showIndices
+				updateGridLayout(grid, showRoles, showIndices, showMetrics)
+			case '5':
+				showMetrics = !showMetrics
+				updateGridLayout(grid, showRoles, showIndices, showMetrics)
+			}
 		}
 		return event
 	})
@@ -1029,4 +1113,60 @@ func getTotalNetworkRX(stats NodesStats) int64 {
 		total += node.Transport.RxSizeInBytes
 	}
 	return total
+}
+
+// Update these helper functions at package level
+func getMaxLengths(nodesInfo NodesInfo, indicesStats IndexStats) (int, int) {
+	maxNodeNameLen := 0
+	maxIndexNameLen := 0
+
+	// Get max node name length
+	for _, nodeInfo := range nodesInfo.Nodes {
+		if len(nodeInfo.Name) > maxNodeNameLen {
+			maxNodeNameLen = len(nodeInfo.Name)
+		}
+	}
+
+	// Get max index name length
+	for _, index := range indicesStats {
+		if !strings.HasPrefix(index.Index, ".") && // Skip hidden indices
+			len(index.Index) > maxIndexNameLen {
+			maxIndexNameLen = len(index.Index)
+		}
+	}
+
+	// Add a small buffer to prevent tight spacing
+	maxNodeNameLen += 2
+	maxIndexNameLen += 2
+
+	return maxNodeNameLen, maxIndexNameLen
+}
+
+// Update the nodes panel header formatting
+func getNodesPanelHeader(maxNodeNameLen int) string {
+	return fmt.Sprintf("[::b]%-*s  [#444444]│[#00ffff] %-13s [#444444]│[#00ffff] %-20s [#444444]│[#00ffff] %-7s [#444444]│[#00ffff] %4s      [#444444]│[#00ffff] %4s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-16s [#444444]│[#00ffff] %-25s[white]\n",
+		maxNodeNameLen,
+		"Node Name",
+		"Roles",
+		"Transport Address",
+		"Version",
+		"CPU",
+		"Load",
+		"Memory",
+		"Heap",
+		"Disk ",
+		"OS")
+}
+
+// Update the indices panel header formatting
+func getIndicesPanelHeader(maxIndexNameLen int) string {
+	return fmt.Sprintf("   [::b]%-*s  [#444444]│[#00ffff] %15s [#444444]│[#00ffff] %12s [#444444]│[#00ffff] %8s [#444444]│[#00ffff] %8s [#444444]│[#00ffff] %-12s [#444444]│[#00ffff] %-10s[white]\n",
+		maxIndexNameLen,
+		"Index Name",
+		"Documents",
+		"Size",
+		"Shards",
+		"Replicas",
+		"Ingested",
+		"Rate")
 }
